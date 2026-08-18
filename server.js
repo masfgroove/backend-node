@@ -14,7 +14,8 @@ const dbPool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'silvi334_DB01'
+    database: process.env.DB_NAME || 'silvi334_DB01',
+    port: process.env.DB_PORT || 3306 // Agora lê a porta do MySQL corretamente
 });
 
 // Teste de conexão ao iniciar
@@ -75,7 +76,6 @@ app.post('/api/auth/cadastro', async (req, res) => {
     const { nome, email, senha } = req.body;
 
     try {
-        // Verifica se o e-mail já existe
         const [existente] = await dbPool.query(
             'SELECT * FROM usuarios_admin WHERE email = ?', 
             [email]
@@ -85,7 +85,6 @@ app.post('/api/auth/cadastro', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Este e-mail já está cadastrado.' });
         }
 
-        // Insere o novo usuário usando senha_hash
         await dbPool.query(
             'INSERT INTO usuarios_admin (nome, email, senha_hash) VALUES (?, ?, ?)', 
             [nome, email, senha]
@@ -98,8 +97,8 @@ app.post('/api/auth/cadastro', async (req, res) => {
     }
 });
 
-// Iniciar o servidor
-const PORT = process.env.PORT || 8097;
+// Iniciar o servidor (Usando a porta padrão do Render ou 10000)
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Servidor Node.js rodando na porta ${PORT}`);
 });
