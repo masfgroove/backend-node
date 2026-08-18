@@ -75,8 +75,9 @@ app.post('/api/leads', async (req, res) => {
 });
 
 // 2. Rota de Cadastro
+// 2. Rota de Cadastro corrigida
 app.post('/api/auth/cadastro', async (req, res) => {
-    const { nome, email, senha, senhaHash } = req.body;
+    const { email, senha, senhaHash } = req.body;
     const senhaFinal = senha || senhaHash;
 
     try {
@@ -90,8 +91,8 @@ app.post('/api/auth/cadastro', async (req, res) => {
         }
 
         await dbPool.query(
-            'INSERT INTO usuarios_admin (nome, email, senha_hash) VALUES (?, ?, ?)', 
-            [nome, email, senhaFinal]
+            'INSERT INTO usuarios_admin (email, senha_hash) VALUES (?, ?)', 
+            [email, senhaFinal]
         );
 
         res.json({ success: true, message: 'Usuário cadastrado com sucesso!' });
