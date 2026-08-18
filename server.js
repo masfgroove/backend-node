@@ -15,7 +15,7 @@ const dbPool = mysql.createPool({
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'silvi334_DB01',
-    port: process.env.DB_PORT || 3306 // Agora lê a porta do MySQL corretamente
+    port: process.env.DB_PORT || 3306
 });
 
 // Teste de conexão ao iniciar
@@ -33,14 +33,17 @@ app.get('/', (req, res) => {
     res.send('API Node.js da ASG Logística rodando perfeitamente!');
 });
 
-// 1. Rota de Login (Usando senha_hash)
+// 1. Rota de Login (Compatível com password ou senhaHash)
 app.post('/api/auth/login', async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, senhaHash } = req.body;
+    
+    // Aceita tanto 'password' quanto 'senhaHash' vindo do front-end
+    const senhaUtilizada = password || senhaHash;
 
     try {
         const [usuarios] = await dbPool.query(
             'SELECT * FROM usuarios_admin WHERE email = ? AND senha_hash = ?', 
-            [email, password]
+            [email, senhaUtilizada]
         );
 
         if (usuarios.length > 0) {
@@ -71,9 +74,10 @@ app.post('/api/leads', async (req, res) => {
     }
 });
 
-// 2. Rota de Cadastro (Inserindo em senha_hash)
+// 2. Rota de Cadastro
 app.post('/api/auth/cadastro', async (req, res) => {
-    const { nome, email, senha } = req.body;
+    const { nome, email, senha, senhaHash } = req.body;
+    const senhaFinal = senha || senhaHash;
 
     try {
         const [existente] = await dbPool.query(
@@ -87,7 +91,7 @@ app.post('/api/auth/cadastro', async (req, res) => {
 
         await dbPool.query(
             'INSERT INTO usuarios_admin (nome, email, senha_hash) VALUES (?, ?, ?)', 
-            [nome, email, senha]
+            [nome, email, senhaFinal]
         );
 
         res.json({ success: true, message: 'Usuário cadastrado com sucesso!' });
@@ -97,7 +101,7 @@ app.post('/api/auth/cadastro', async (req, res) => {
     }
 });
 
-// Iniciar o servidor (Usando a porta padrão do Render ou 10000)
+// Iniciar o servidor
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Servidor Node.js rodando na porta ${PORT}`);
