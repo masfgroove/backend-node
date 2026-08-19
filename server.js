@@ -74,11 +74,11 @@ app.post('/api/leads', async (req, res) => {
     }
 });
 
-// 2. Rota de Cadastro
-// 2. Rota de Cadastro corrigida
+// 2. Rota de Cadastro corrigida com data e role
 app.post('/api/auth/cadastro', async (req, res) => {
-    const { email, senha, senhaHash } = req.body;
+    const { email, senha, senhaHash, role } = req.body;
     const senhaFinal = senha || senhaHash;
+    const cargoFinal = role || 2; // Define 2 como padrão se não vier nada
 
     try {
         const [existente] = await dbPool.query(
@@ -90,9 +90,10 @@ app.post('/api/auth/cadastro', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Este e-mail já está cadastrado.' });
         }
 
+        // Incluindo role e data_criacao (NOW()) na inserção
         await dbPool.query(
-            'INSERT INTO usuarios_admin (email, senha_hash) VALUES (?, ?)', 
-            [email, senhaFinal]
+            'INSERT INTO usuarios_admin (email, senha_hash, role, data_criacao) VALUES (?, ?, ?, NOW())', 
+            [email, senhaFinal, cargoFinal]
         );
 
         res.json({ success: true, message: 'Usuário cadastrado com sucesso!' });
