@@ -103,6 +103,17 @@ app.post('/api/auth/cadastro', async (req, res) => {
     }
 });
 
+// 4. Rota para listar todos os leads (Necessária para a Tabela do Admin)
+app.get('/api/leads', async (req, res) => {
+    try {
+        const [leads] = await dbPool.query('SELECT * FROM leads ORDER BY id DESC');
+        res.json(leads);
+    } catch (error) {
+        console.error("Erro ao buscar leads:", error);
+        res.status(500).json({ success: false, message: 'Erro interno ao buscar leads' });
+    }
+});
+
 // Iniciar o servidor
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
