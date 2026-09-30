@@ -68,6 +68,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // 3. Rota de Leads / Cotação Expressa (Com gravação no DB e Envio de E-mail)
+// 3. Rota de Leads / Cotação Expressa (Com gravação no DB e Envio de E-mail)
 app.post('/api/leads', async (req, res) => {
     const { nome, email, telefone, empresa, servico } = req.body;
 
@@ -78,10 +79,10 @@ app.post('/api/leads', async (req, res) => {
             [nome, email, telefone, empresa, servico]
         );
         
-        // 2. Prepara e envia o e-mail de notificação
+        // 2. Prepara e envia o e-mail de notificação com await
         const mailOptions = {
             from: `"ASC Logística" <${process.env.MAIL_USER}>`,
-            to: process.env.MAIL_USER, // Envia para o seu próprio e-mail de aviso
+            to: process.env.MAIL_USER,
             subject: `Nova Cotação Recebida - ${nome || 'Cliente'}`,
             html: `
                 <h2>Nova Cotação / Lead Registrado</h2>
@@ -96,16 +97,14 @@ app.post('/api/leads', async (req, res) => {
             `
         };
 
-        // Dispara o e-mail sem bloquear a resposta caso ocorra algum detalhe no envio
-        transporter.sendMail(mailOptions, (mailErr, info) => {
-            if (mailErr) {
-                console.error("Erro ao enviar e-mail:", mailErr);
-            } else {
-                console.log("E-mail enviado com sucesso:", info.response);
-            }
-        });
+        try {
+            const info = await transporter.sendMail(mailOptions);
+            console.log("E-mail enviado com sucesso:", info.response);
+        } catch (mailErr) {
+            console.error("ERRO DETALHADO DO GMAIL/NODEMAILER:", mailErr.message);
+        }
 
-        res.json({ success: true, message: 'Cotação registrada e e-mail enviado com sucesso!' });
+        res.json({ success: true, message: 'Cotação registrada e e-mail processado!' });
     } catch (error) {
         console.error("Erro ao salvar lead/cotação:", error);
         res.status(500).json({ success: false, message: 'Erro interno ao salvar cotação' });
