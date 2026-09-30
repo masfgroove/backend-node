@@ -58,19 +58,56 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // 3. Rota de Leads / Cotação Expressa
+// Rota de Leads / Cotação Expressa com Envio de E-mail para Teste
 app.post('/api/leads', async (req, res) => {
     const { nome, email, telefone, empresa, servico } = req.body;
 
     try {
+        // 1. Salva no Banco de Dados MySQL Externo
         await dbPool.query(
             'INSERT INTO leads (nome, email, telefone, empresa, servico) VALUES (?, ?, ?, ?, ?)', 
             [nome, email, telefone, empresa, servico]
         );
 
-        res.json({ success: true, message: 'Cotação registrada com sucesso!' });
+        // 2. Configura o Transporter do Nodemailer para o Gmail
+        const transporter = nodemailer.createTransport({
+            host: process.env.MAIL_HOST,
+            port: process.env.MAIL_PORT,
+            secure: true, // true para porta 465
+            auth: {
+                user: process.env.MAIL_USER,
+                pass: process.env.MAIL_PASS
+            }
+        });
+
+        // 3. Configura o conteúdo do e-mail de teste
+        const mailOptions = {
+            from: `"Site ASC Logística (Teste)" <${process.env.MAIL_USER}>`,
+            to: 'masfgroove369@gmail.com', // Você recebe a cotação no seu próprio e-mail para validar
+            subject: `[TESTE] Nova Cotação Expressa: ${servico} - ${empresa || nome}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; color: #333; padding: 20px; background-color: #f8fafc; border-radius: 10px;">
+                    <h2 style="color: #ea580c;">Nova Cotação Recebida (Ambiente de Teste)</h2>
+                    <p>Detalhes do cliente e da solicitação:</p>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><strong>Nome:</strong> ${nome}</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><strong>E-mail do Cliente:</strong> ${email}</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><strong>Telefone/WhatsApp:</strong> ${telefone}</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><strong>Empresa:</strong> ${empresa || 'Não informada'}</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><strong>Serviço/Modal:</strong> ${servico}</li>
+                    </ul>
+                    <p style="margin-top: 20px; font-size: 12px; color: #64748b;">Dados salvos com sucesso no banco MySQL externo (silvi334_DB01).</p>
+                </div>
+            `
+        };
+
+        // Dispara o e-mail
+        await transporter.sendMail(mailOptions);
+
+        res.json({ success: true, message: 'Cotação registrada no banco e e-mail de teste enviado com sucesso!' });
     } catch (error) {
-        console.error("Erro ao salvar lead/cotação:", error);
-        res.status(500).json({ success: false, message: 'Erro interno ao salvar cotação' });
+        console.error("Erro ao salvar lead / enviar e-mail:", error);
+        res.status(500).json({ success: false, message: 'Erro interno ao processar cotação' });
     }
 });
 
@@ -113,6 +150,9 @@ app.get('/api/leads', async (req, res) => {
         res.status(500).json({ success: false, message: 'Erro interno ao buscar leads' });
     }
 });
+
+
+
 
 // Iniciar o servidor
 const PORT = process.env.PORT || 10000;
