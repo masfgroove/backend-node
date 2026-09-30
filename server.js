@@ -20,13 +20,17 @@ const dbPool = mysql.createPool({
 });
 
 // Configuração do Transportador de E-mail (Nodemailer)
+// Configuração do Transportador de E-mail (Nodemailer) com suporte a TLS/STARTTLS se necessário
 const transporter = nodemailer.createTransport({
-    host: process.env.MAIL_HOST || 'smtp.gmail.com',
-    port: process.env.MAIL_PORT || 465,
-    secure: true, // true para porta 465, false para outras
+    host: process.env.MAIL_HOST || 'smtp.titan.email',
+    port: Number(process.env.MAIL_PORT) || 465,
+    secure: Number(process.env.MAIL_PORT) === 465, // true para 465 (SSL), false para 587 (TLS)
     auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASS
+        user: process.env.MAIL_USER, // contato@asclogistica.com.br
+        pass: process.env.MAIL_PASS  // Ma@010246
+    },
+    tls: {
+        rejectUnauthorized: false // Evita erros de certificado autoassinado em alguns servidores
     }
 });
 
@@ -68,6 +72,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // 3. Rota de Leads / Cotação Expressa (Com gravação no DB e Envio de E-mail)
+// 3. Rota de Leads / Cotação Expressa (Com gravação no DB e Envio de E-mail)
 app.post('/api/leads', async (req, res) => {
     const { nome, email, telefone, empresa, servico } = req.body;
 
@@ -78,10 +83,10 @@ app.post('/api/leads', async (req, res) => {
             [nome, email, telefone, empresa, servico]
         );
         
-        // 2. Prepara e envia o e-mail de notificação
+        // 2. Prepara o e-mail de notificação
         const mailOptions = {
             from: `"ASC Logística" <${process.env.MAIL_USER}>`,
-            to: process.env.MAIL_USER, // Envia para o seu próprio e-mail de aviso
+            to: process.env.MAIL_USER, // Envia para o e-mail da empresa
             subject: `Nova Cotação Recebida - ${nome || 'Cliente'}`,
             html: `
                 <h2>Nova Cotação / Lead Registrado</h2>
@@ -96,16 +101,15 @@ app.post('/api/leads', async (req, res) => {
             `
         };
 
-        // Dispara o e-mail sem bloquear a resposta caso ocorra algum detalhe no envio
-        transporter.sendMail(mailOptions, (mailErr, info) => {
-            if (mailErr) {
-                console.error("Erro ao enviar e-mail:", mailErr);
-            } else {
-                console.log("E-mail enviado com sucesso:", info.response);
-            }
-        });
+        // 3. Envia o e-mail aguardando a resposta para logar possíveis erros de autenticação
+        try {
+            const info = await transporter.sendMail(mailOptions);
+            console.log("E-mail enviado com sucesso:", info.response);
+        } catch (mailErr) {
+            console.error("ERRO DETALHADO NO ENVIO DO E-MAIL:", mailErr.message);
+        }
 
-        res.json({ success: true, message: 'Cotação registrada e e-mail enviado com sucesso!' });
+        res.json({ success: true, message: 'Cotação registrada e e-mail processado com sucesso!' });
     } catch (error) {
         console.error("Erro ao salvar lead/cotação:", error);
         res.status(500).json({ success: false, message: 'Erro interno ao salvar cotação' });
