@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -16,6 +17,17 @@ const dbPool = mysql.createPool({
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'silvi334_DB01',
     port: process.env.DB_PORT || 3306
+});
+
+// Configuração do Transportador de E-mail (Nodemailer - Titan Mail)
+const transporter = nodemailer.createTransport({
+    host: process.env.MAIL_HOST || 'smtp.titan.email',
+    port: Number(process.env.MAIL_PORT) || 465,
+    secure: true, // true para a porta 465 (SSL)
+    auth: {
+        user: process.env.MAIL_USER, // contato@asclogistica.com.br
+        pass: process.env.MAIL_PASS  // Ma@010246
+    }
 });
 
 // Teste de conexão ao iniciar
@@ -36,8 +48,6 @@ app.get('/', (req, res) => {
 // 1. Rota de Login (Compatível com password ou senhaHash)
 app.post('/api/auth/login', async (req, res) => {
     const { email, password, senhaHash } = req.body;
-    
-    // Aceita tanto 'password' quanto 'senhaHash' vindo do front-end
     const senhaUtilizada = password || senhaHash;
 
     try {
@@ -57,18 +67,45 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// 3. Rota de Leads / Cotação Expressa
+// 3. Rota de Leads / Cotação Expressa (Com gravação no DB e Envio de E-mail)
 app.post('/api/leads', async (req, res) => {
     const { nome, email, telefone, empresa, servico } = req.body;
 
     try {
+        // 1. Grava no banco de dados MySQL na HostGator
         await dbPool.query(
             'INSERT INTO leads (nome, email, telefone, empresa, servico) VALUES (?, ?, ?, ?, ?)', 
             [nome, email, telefone, empresa, servico]
         );
         
+        // 2. Prepara o e-mail de notificação para a empresa
+        const mailOptions = {
+            from: `"ASC Logística" <${process.env.MAIL_USER}>`,
+            to: process.env.MAIL_USER, // Envia para contato@asclogistica.com.br
+            subject: `Nova Cotação Recebida - ${nome || 'Cliente'}`,
+            html: `
+                <h2>Nova Cotação / Lead Registrado</h2>
+                <p><strong>Nome:</strong> ${nome || 'Não informado'}</p>
+                <p><strong>E-mail do Cliente:</strong> ${email || 'Não informado'}</p>
+                <p><strong>Telefone:</strong> ${telefone || 'Não informado'}</p>
+                <p><strong>Empresa:</strong> ${empresa || 'Não informada'}</p>
+                <p><strong>Serviço:</strong> ${servico || 'Não informado'}</p>
+                <br>
+                <hr>
+                <small>Mensagem automática enviada pelo sistema da ASC Logística.</small>
+            `
+        };
 
-        res.json({ success: true, message: 'Cotação registrada com sucesso!' });
+        // 3. Dispara o e-mail em segundo plano ou aguarda o envio
+        transporter.sendMail(mailOptions, (mailErr, info) => {
+            if (mailErr) {
+                console.error("Erro ao enviar e-mail pelo Titan:", mailErr.message);
+            } else {
+                console.log("E-mail de lead enviado com sucesso:", info.response);
+            }
+        });
+
+        res.json({ success: true, message: 'Cotação registrada e e-mail enviado com sucesso!' });
     } catch (error) {
         console.error("Erro ao salvar lead/cotação:", error);
         res.status(500).json({ success: false, message: 'Erro interno ao salvar cotação' });
@@ -79,7 +116,7 @@ app.post('/api/leads', async (req, res) => {
 app.post('/api/auth/cadastro', async (req, res) => {
     const { email, senha, senhaHash, role } = req.body;
     const senhaFinal = senha || senhaHash;
-    const cargoFinal = role || 2; // Define 2 como padrão se não vier nada
+    const cargoFinal = role || 2;
 
     try {
         const [existente] = await dbPool.query(
@@ -91,7 +128,6 @@ app.post('/api/auth/cadastro', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Este e-mail já está cadastrado.' });
         }
 
-        // Incluindo role e data_criacao (NOW()) na inserção
         await dbPool.query(
             'INSERT INTO usuarios_admin (email, senha_hash, role, data_criacao) VALUES (?, ?, ?, NOW())', 
             [email, senhaFinal, cargoFinal]
@@ -104,7 +140,7 @@ app.post('/api/auth/cadastro', async (req, res) => {
     }
 });
 
-// 4. Rota para listar todos os leads (Necessária para a Tabela do Admin)
+// 4. Rota para listar todos os leads
 app.get('/api/leads', async (req, res) => {
     try {
         const [leads] = await dbPool.query('SELECT * FROM leads ORDER BY id DESC');
@@ -114,9 +150,6 @@ app.get('/api/leads', async (req, res) => {
         res.status(500).json({ success: false, message: 'Erro interno ao buscar leads' });
     }
 });
-
-
-
 
 // Iniciar o servidor
 const PORT = process.env.PORT || 10000;
