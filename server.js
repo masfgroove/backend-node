@@ -66,6 +66,7 @@ app.post('/api/leads', async (req, res) => {
             'INSERT INTO leads (nome, email, telefone, empresa, servico) VALUES (?, ?, ?, ?, ?)', 
             [nome, email, telefone, empresa, servico]
         );
+        
 
         res.json({ success: true, message: 'Cotação registrada com sucesso!' });
     } catch (error) {
