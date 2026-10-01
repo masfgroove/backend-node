@@ -151,6 +151,28 @@ app.get('/api/leads', async (req, res) => {
     }
 });
 
+// 2. Chama o script PHP na HostGator para disparar o e-mail
+        try {
+            const params = new URLSearchParams({
+                nome: nome || '',
+                email: email || '',
+                telefone: telefone || '',
+                empresa: empresa || '',
+                servico: servico || ''
+            });
+
+            const respostaPhp = await fetch(`https://asclogistica.com.br/enviar-email.php`, {
+                method: 'POST',
+                body: params
+            });
+
+            const resultadoPhp = await respostaPhp.json();
+            console.log("Retorno do envio de e-mail PHP:", resultadoPhp);
+        } catch (emailErr) {
+            console.error("Erro ao acionar o script PHP de e-mail:", emailErr.message);
+        }
+
+
 // Iniciar o servidor
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
