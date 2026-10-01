@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
-const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -17,17 +16,6 @@ const dbPool = mysql.createPool({
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'silvi334_DB01',
     port: process.env.DB_PORT || 3306
-});
-
-// Configuração do Transportador de E-mail (Nodemailer - Titan Mail)
-const transporter = nodemailer.createTransport({
-    host: process.env.MAIL_HOST || 'smtp.titan.email',
-    port: Number(process.env.MAIL_PORT) || 465,
-    secure: true, // true para a porta 465 (SSL)
-    auth: {
-        user: process.env.MAIL_USER, // contato@asclogistica.com.br
-        pass: process.env.MAIL_PASS  // Ma@010246
-    }
 });
 
 // Teste de conexão ao iniciar
@@ -67,7 +55,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// 3. Rota de Leads / Cotação Expressa (Com gravação no DB e Envio de E-mail)
+// 3. Rota de Leads / Cotação Expressa (Grava no DB e chama o PHP)
 app.post('/api/leads', async (req, res) => {
     const { nome, email, telefone, empresa, servico } = req.body;
 
@@ -78,34 +66,31 @@ app.post('/api/leads', async (req, res) => {
             [nome, email, telefone, empresa, servico]
         );
         
-        // 2. Prepara o e-mail de notificação para a empresa
-        const mailOptions = {
-            from: `"ASC Logística" <${process.env.MAIL_USER}>`,
-            to: process.env.MAIL_USER, // Envia para contato@asclogistica.com.br
-            subject: `Nova Cotação Recebida - ${nome || 'Cliente'}`,
-            html: `
-                <h2>Nova Cotação / Lead Registrado</h2>
-                <p><strong>Nome:</strong> ${nome || 'Não informado'}</p>
-                <p><strong>E-mail do Cliente:</strong> ${email || 'Não informado'}</p>
-                <p><strong>Telefone:</strong> ${telefone || 'Não informado'}</p>
-                <p><strong>Empresa:</strong> ${empresa || 'Não informada'}</p>
-                <p><strong>Serviço:</strong> ${servico || 'Não informado'}</p>
-                <br>
-                <hr>
-                <small>Mensagem automática enviada pelo sistema da ASC Logística.</small>
-            `
-        };
+        console.log("Lead salvo no banco com sucesso!");
 
-        // 3. Dispara o e-mail em segundo plano ou aguarda o envio
-        transporter.sendMail(mailOptions, (mailErr, info) => {
-            if (mailErr) {
-                console.error("Erro ao enviar e-mail pelo Titan:", mailErr.message);
-            } else {
-                console.log("E-mail de lead enviado com sucesso:", info.response);
-            }
-        });
+        // 2. Chama o script PHP na HostGator para disparar o e-mail para o Hotmail
+        try {
+            const respostaPhp = await fetch(`https://asclogistica.com.br/enviar-email.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    nome: nome || '',
+                    email: email || '',
+                    telefone: telefone || '',
+                    empresa: empresa || '',
+                    servico: servico || ''
+                }).toString()
+            });
 
-        res.json({ success: true, message: 'Cotação registrada e e-mail enviado com sucesso!' });
+            const resultadoPhp = await respostaPhp.json();
+            console.log("Retorno do envio de e-mail PHP:", resultadoPhp);
+        } catch (emailErr) {
+            console.error("Erro ao acionar o script PHP de e-mail:", emailErr.message);
+        }
+
+        res.json({ success: true, message: 'Cotação registrada e e-mail encaminhado com sucesso!' });
     } catch (error) {
         console.error("Erro ao salvar lead/cotação:", error);
         res.status(500).json({ success: false, message: 'Erro interno ao salvar cotação' });
