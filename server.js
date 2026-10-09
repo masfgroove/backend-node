@@ -4,6 +4,7 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 const app = express();
+const { Pinecone } = require('@pinecone-database/pinecone');
 
 // Configurações
 app.use(cors());
@@ -60,7 +61,6 @@ app.post('/api/leads', async (req, res) => {
     const { nome, email, telefone, empresa, servico } = req.body;
 
     try {
-        // 1. Grava no banco de dados MySQL na HostGator
         await dbPool.query(
             'INSERT INTO leads (nome, email, telefone, empresa, servico) VALUES (?, ?, ?, ?, ?)', 
             [nome, email, telefone, empresa, servico]
@@ -68,7 +68,6 @@ app.post('/api/leads', async (req, res) => {
         
         console.log("Lead salvo no banco com sucesso!");
 
-        // 2. Chama o script PHP na HostGator para disparar o e-mail para o Hotmail
         try {
             const respostaPhp = await fetch(`https://asclogistica.com.br/enviar-email.php`, {
                 method: 'POST',
@@ -133,6 +132,34 @@ app.get('/api/leads', async (req, res) => {
     } catch (error) {
         console.error("Erro ao buscar leads:", error);
         res.status(500).json({ success: false, message: 'Erro interno ao buscar leads' });
+    }
+});
+
+// --- PINECONE ASSISTANT CONFIG ---
+const pc = new Pinecone({
+    api_key: process.env.PINECONE_API_KEY || 'pcsk_6RC2YU_3pkDZgFHvSrKUnLHyu3PteUSvrCxP8VRU2yafiXPbsDoALDGfyyHZyEua1jeg1o'
+});
+
+// Rota para conversar com o assistente do Pinecone (evita problemas de CORS)
+app.post('/api/assistant/chat', async (req, res) => {
+    const { message } = req.body;
+
+    if (!message) {
+        return res.status(400).json({ success: false, message: 'A mensagem é obrigatória.' });
+    }
+
+    try {
+        const assistant = pc.assistant.Assistant('asc-logistica');
+        const resp = await assistant.chat({
+            messages: [{ role: 'user', content: message }]
+        });
+        
+        // Retorna o conteúdo da resposta gerada pelo assistente
+        const reply = resp.message.content;
+        res.json({ success: true, reply });
+    } catch (error) {
+        console.error("Erro ao consultar o Pinecone Assistant:", error);
+        res.status(500).json({ success: false, message: 'Erro interno ao consultar o assistente.' });
     }
 });
 
