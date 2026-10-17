@@ -55,7 +55,20 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// 3. Rota de Leads / Cotação Expressa (Grava no DB e chama o PHP)
+
+
+const nodemailer = require('nodemailer');
+
+// Configuração do Transportador SMTP do Nodemailer
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'masfgroove2012@gmail.com',
+        pass: 'SUA_SENHA_DE_APP_DE_16_DIGITOS' // Cole aqui a senha de app gerada no Gmail
+    }
+});
+
+// 3. Rota de Leads / Cotação Expressa (Grava no DB e Envia E-mail via SMTP)
 app.post('/api/leads', async (req, res) => {
     const { nome, email, telefone, empresa, servico } = req.body;
 
@@ -66,36 +79,38 @@ app.post('/api/leads', async (req, res) => {
             [nome, email, telefone, empresa, servico]
         );
         
-        console.log("Lead salvo no banco com sucesso!");
+        console.log("Lead salvo no banco de dados com sucesso!");
 
-        // 2. Chama o script PHP na HostGator para disparar o e-mail para o Hotmail
-        try {
-            const respostaPhp = await fetch(`https://asclogistica.com.br/enviar-email.php`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                    nome: nome || '',
-                    email: email || '',
-                    telefone: telefone || '',
-                    empresa: empresa || '',
-                    servico: servico || ''
-                }).toString()
-            });
+        // 2. Envia e-mail de notificação diretamente via Nodemailer SMTP
+        const mailOptions = {
+            from: '"ASC Logística Site" <masfgroove2012@gmail.com>',
+            to: 'masfgroove2012@gmail.com',
+            replyTo: email,
+            subject: `Nova Cotação Expressa - ASC Logística (${nome})`,
+            html: `
+                <h2>Nova Cotação Recebida pelo Site</h2>
+                <p><strong>Nome:</strong> ${nome || 'Não informado'}</p>
+                <p><strong>E-mail:</strong> ${email || 'Não informado'}</p>
+                <p><strong>Telefone:</strong> ${telefone || 'Não informado'}</p>
+                <p><strong>Empresa:</strong> ${empresa || 'Não informada'}</p>
+                <p><strong>Serviço / Modal:</strong> ${servico || 'Não informado'}</p>
+            `
+        };
 
-            const resultadoPhp = await respostaPhp.json();
-            console.log("Retorno do envio de e-mail PHP:", resultadoPhp);
-        } catch (emailErr) {
-            console.error("Erro ao acionar o script PHP de e-mail:", emailErr.message);
-        }
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.error("Erro ao enviar e-mail via SMTP:", error);
+            } else {
+                console.log("E-mail de cotação entregue com sucesso:", info.response);
+            }
+        });
 
-        res.json({ success: true, message: 'Cotação registrada e e-mail encaminhado com sucesso!' });
+        res.json({ success: true, message: 'Cotação registrada e e-mail enviado com sucesso!' });
     } catch (error) {
         console.error("Erro ao salvar lead/cotação:", error);
         res.status(500).json({ success: false, message: 'Erro interno ao salvar cotação' });
     }
-});
+})
 
 // 2. Rota de Cadastro corrigida com data e role
 app.post('/api/auth/cadastro', async (req, res) => {
